@@ -12,7 +12,7 @@ Encoder encoderRight(6, 7); // Encoder A och B för höger motor
 // Konstanter
 #define PULSES_PER_REV 960        // Antal pulser per varv
 #define DEGREES_PER_PULSE (360.0 / PULSES_PER_REV) // Grader per puls
-#define TARGET_DEGREES 180        // Hur många grader varje hjul ska snurra
+#define TARGET_DEGREES 90        // Hur många grader varje hjul ska snurra
 
 void setup() {
   Serial.begin(9600);
