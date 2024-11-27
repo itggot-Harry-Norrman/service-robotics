@@ -1,76 +1,111 @@
+#include <QTRSensors.h>
 #include "CytronMotorDriver.h"
-#include <Encoder.h>
 
-// Motorstyrning för MDD3A
-CytronMD motorLeft(PWM_PWM, 3, 5);   // Vänster motor: PWM_A = Pin 3, PWM_B = Pin 5
-CytronMD motorRight(PWM_PWM, 9, 10); // Höger motor: PWM_A = Pin 9, PWM_B = Pin 10
+// Define analog pins used
+const uint8_t sensorPins[] = {A0, A1, A2, A3, A4, A5}; // 6 sensors
+const uint8_t numSensors = sizeof(sensorPins) / sizeof(sensorPins[0]); // Number of sensors
 
-// Encoder-konfiguration
-Encoder encoderLeft(2, 4);  // Encoder A och B för vänster motor
-Encoder encoderRight(6, 7); // Encoder A och B för höger motor
+// Create a QTRSensors object
+QTRSensors qtr;
 
-// Konstanter
-#define PULSES_PER_REV 960        // Antal pulser per varv
-#define DEGREES_PER_PULSE (360.0 / PULSES_PER_REV) // Grader per puls
-#define TARGET_DEGREES 90        // Hur många grader varje hjul ska snurra
+// Motor control for MDD3A
+CytronMD motorLeft(PWM_PWM, 9, 10);   // Left motor: PWM_A = Pin 9, PWM_B = Pin 10
+CytronMD motorRight(PWM_PWM, 3, 5);   // Right motor: PWM_A = Pin 3, PWM_B = Pin 5
+
+// PD Controller constants
+const double KP = 0.03;   // Proportional gain (adjust as needed)
+const double KD = 0.0475;   // Derivative gain (adjust as needed)
+double lastError = 0;    // To store the previous error for derivative calculation
+
+// Maximum motor speed
+const int maxSpeed = 250;
 
 void setup() {
-  Serial.begin(9600);
+  // Set 3.3V as reference voltage
+  analogReference(EXTERNAL); // Use external reference (3.3V connected to AREF)
 
-  // Stoppa motorerna initialt
+  // Configure QTR sensor
+  qtr.setTypeAnalog();
+  qtr.setSensorPins(sensorPins, numSensors); // Assign sensor pins
+
+  // Start serial communication
+  Serial.begin(9600);
+  Serial.println("Startar kalibrering...");
+
+  // Calibrate sensors
+  for (int i = 0; i < 400; i++) {
+    qtr.calibrate();
+    delay(10); // Wait 10 ms between each calibration reading
+  }
+  Serial.println("Kalibrering klar!");
+
+  // Stop motors initially
   motorLeft.setSpeed(0);
   motorRight.setSpeed(0);
-
-  // Nollställ encoders
-  encoderLeft.write(0);
-  encoderRight.write(0);
 }
 
 void loop() {
-  // Kör framåt
-  driveForward(255); // Full hastighet
-  delay(1000);       // Kör i 1 sekund
-  stopMotors();      // Stoppa
+  // Array to hold sensor data
+  uint16_t sensorValues[numSensors];
 
-  // Sväng höger baserat på encoderpulser
-  turnRight(255, TARGET_DEGREES); // Sväng höger 180 grader
-  stopMotors();      // Stoppa
+  // Read line position with readLineBlack()
+  int position = qtr.readLineBlack(sensorValues); // Returns 0–5000
 
-  // Fortsätt i loopen
-}
-
-// Funktion för att köra framåt
-void driveForward(int pwm) {
-  encoderLeft.write(0);  // Nollställ encoders
-  encoderRight.write(0);
-
-  motorLeft.setSpeed(pwm);  // Vänster motor framåt
-  motorRight.setSpeed(pwm); // Höger motor framåt
-}
-
-// Funktion för att svänga höger
-void turnRight(int pwm, float degrees) {
-  encoderLeft.write(0);  // Nollställ encoders
-  encoderRight.write(0);
-
-  motorLeft.setSpeed(pwm);   // Vänster motor framåt
-  motorRight.setSpeed(-pwm); // Höger motor bakåt
-
-  // Räkna antal pulser som motsvarar den önskade vinkeln
-  long targetPulses = degrees / DEGREES_PER_PULSE;
-
-  // Vänta tills encodern registrerar önskat antal pulser
-  while (abs(encoderLeft.read()) < targetPulses && abs(encoderRight.read()) < targetPulses) {
-    Serial.print("Encoder Left Pulses: ");
-    Serial.print(encoderLeft.read());
-    Serial.print(" | Encoder Right Pulses: ");
-    Serial.println(encoderRight.read());
+  // Print sensor data and line position to Serial Monitor
+  Serial.print("Sensorvärden: ");
+  for (uint8_t i = 0; i < numSensors; i++) {
+    Serial.print(sensorValues[i]);
+    Serial.print("\t");
   }
-}
+  Serial.print("| Linjeposition: ");
+  Serial.println(position); // 0–5000 where 2500 is middle
 
-// Funktion för att stoppa motorerna
-void stopMotors() {
-  motorLeft.setSpeed(0);  // Stäng av vänster motor
-  motorRight.setSpeed(0); // Stäng av höger motor
-  delay(500);             // Kort paus för stabilitet
+  // Check if all sensors are below threshold (line lost)
+  const uint16_t stopThreshold = 600; // Threshold to determine if line is lost
+  bool allBelowThreshold = true;
+  for (uint8_t i = 0; i < numSensors; i++) {
+    if (sensorValues[i] >= stopThreshold) {
+      allBelowThreshold = false;
+      break;
+    }
+  }
+
+  if (allBelowThreshold) {
+    // Stop motors if all sensors are below threshold
+    motorLeft.setSpeed(0);
+    motorRight.setSpeed(0);
+    Serial.println("Alla sensorer under 500, stannar...");
+    delay(100); // Wait a bit before next check
+    return;
+  }
+
+  // PD Control
+  int error = position - 2500; // Error from middle position
+  double derivative = error - lastError;
+  double adjustment = KP * error + KD * derivative;
+  lastError = error;
+
+  // Compute motor speeds
+  int leftSpeed = maxSpeed + adjustment;
+  int rightSpeed = maxSpeed - adjustment;
+
+  // Constrain motor speeds to maxSpeed
+  leftSpeed = constrain(leftSpeed, -maxSpeed, maxSpeed);
+  rightSpeed = constrain(rightSpeed, -maxSpeed, maxSpeed);
+
+  // Set motor speeds (corrected polarity)
+  motorLeft.setSpeed(-leftSpeed);  // Negative to correct direction
+  motorRight.setSpeed(rightSpeed); // Positive for correct direction
+
+  // Print debug information
+  Serial.print("Error: ");
+  Serial.print(error);
+  Serial.print(" | Adjustment: ");
+  Serial.print(adjustment);
+  Serial.print(" | Left Speed: ");
+  Serial.print(leftSpeed);
+  Serial.print(" | Right Speed: ");
+  Serial.println(rightSpeed);
+
+  delay(10); // Short delay to avoid overload
 }
