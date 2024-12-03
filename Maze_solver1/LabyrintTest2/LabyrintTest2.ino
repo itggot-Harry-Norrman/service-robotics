@@ -12,6 +12,11 @@ QTRSensors qtr;
 CytronMD motorLeft(PWM_PWM, 9, 10);   // Vänster motor: PWM_A = Pin 9, PWM_B = Pin 10
 CytronMD motorRight(PWM_PWM, 3, 5);   // Höger motor: PWM_A = Pin 3, PWM_B = Pin 5
 
+//Ultrasonic 
+#define CM 1      //Centimeter
+int cylinderLimit = 5;
+bool cylinderFound = false;
+
 // PID-variabler
 float Kp = 0.2;  // Justera efter behov
 float Ki = 0;    // Bör ej behöva användas
@@ -62,7 +67,7 @@ void setup() {
 
 void loop() {
   uint16_t sensorValues[numSensors];
-
+  long microseconds = TP_init();
   // Läs av linjens position med readLineBlack()
   int position = qtr.readLineBlack(sensorValues); // Returnerar 0–5000
 
@@ -237,3 +242,35 @@ bool lineFound(uint16_t *sensorValues) {
     return false;
   }
 }
+bool cylinderFound(long time) {
+  if(Distance(time, CM) < cylinderLimit){
+    return true;
+  } else {
+    return false;
+  }
+}
+long Distance(long time, int flag)
+{
+  /*
+  
+  */
+  long distance;
+  if(flag)
+    distance = time /29 / 2  ;     // Distance_CM  = ((Duration of high level)*(Sonic :340m/s))/2
+                                   //              = ((Duration of high level)*(Sonic :0.034 cm/us))/2
+                                   //              = ((Duration of high level)/(Sonic :29.4 cm/us))/2
+  else
+    distance = time / 74 / 2;      // INC
+  return distance;
+}
+long TP_init()
+{                     
+  digitalWrite(TP, LOW);                    
+  delayMicroseconds(2);
+  digitalWrite(TP, HIGH);                 // pull the Trig pin to high level for more than 10us impulse 
+  delayMicroseconds(10);
+  digitalWrite(TP, LOW);
+  long microseconds = pulseIn(EP,HIGH);   // waits for the pin to go HIGH, and returns the length of the pulse in microseconds
+  return microseconds;                    // return microseconds
+}
+
