@@ -67,6 +67,8 @@ void setup() {
 
 void loop() {
   uint16_t sensorValues[numSensors];
+
+  // Ultrasonic time measurement
   long microseconds = TP_init();
   // Läs av linjens position med readLineBlack()
   int position = qtr.readLineBlack(sensorValues); // Returnerar 0–5000
