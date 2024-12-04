@@ -14,8 +14,14 @@ CytronMD motorRight(PWM_PWM, 3, 5);   // Höger motor: PWM_A = Pin 3, PWM_B = Pi
 
 //Ultrasonic 
 #define CM 1      //Centimeter
+#define TP 8      //Trig_pin
+#define EP 9      //Echo_pin
 int cylinderLimit = 5;
-bool cylinderFound = false;
+bool isCylinderFound = false;
+
+//Phases
+//0: Following line, 1: Navigate missing line
+int phase = 0;
 
 // PID-variabler
 float Kp = 0.2;  // Justera efter behov
@@ -27,9 +33,11 @@ float integral = 0;
 
 // Maximal hastighet
 int maxSpeed = 200;
+int baseSpeed;
 
 // Definiera svängsekvensen vid korsningar ('L' för vänster, 'R' för höger, 'S' för rakt fram)
 char path[] = {'R', 'L', 'R', 'R', 'L', 'L'}; // Exempel på sekvens
+char missingLinePath[] = {'R','L'}
 int pathLength = sizeof(path) / sizeof(path[0]);
 int pathIndex = 0; // Index för aktuell svänginstruktion
 
@@ -63,6 +71,7 @@ void setup() {
   // Stoppa motorerna initialt
   motorLeft.setSpeed(0);
   motorRight.setSpeed(0);
+  baseSpeed = maxSpeed / 2;
 }
 
 void loop() {
@@ -83,10 +92,20 @@ void loop() {
 
   lastError = error;
 
-  // Basfart för motorerna
-  int baseSpeed = maxSpeed / 2;
+  switch(phase) {
+    case 0:
+      lineFollow(sensorValues, correction);
+      break;
+    case 1:
+      navMissingLine();
+      break;
+  }
 
-  // Beräkna motorhastigheter
+  delay(1); // Kort fördröjning för att undvika överbelastning
+}
+
+void lineFollow(uint16_t sensorValues, int correction) {
+// Beräkna motorhastigheter
   int leftSpeed = baseSpeed + correction;
   int rightSpeed = baseSpeed - correction;
 
@@ -117,8 +136,12 @@ void loop() {
     }
   }
   
-
-  delay(1); // Kort fördröjning för att undvika överbelastning
+}
+void navMissingLine() {
+  //if high confidence in line found
+  //Move to phase 0
+  //else
+  //navigate missing path
 }
 
 void calibrateSensors() {
@@ -167,6 +190,8 @@ void handleIntersection(char action) {
   } else if (action == 'S') {
     // Fortsätt rakt fram, inget behöver göras
     Serial.println("Fortsätter rakt fram.");
+  } else if(action == 'M'){
+    phase = 1;
   }
 }
 
