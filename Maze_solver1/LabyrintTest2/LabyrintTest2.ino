@@ -17,7 +17,7 @@ CytronMD motorRight(PWM_PWM, 3, 5);   // Höger motor: PWM_A = Pin 3, PWM_B = Pi
 #define TRIGGER_PIN  11  // Arduino pin tied to trigger pin on the ultrasonic sensor.
 #define ECHO_PIN     12  // Arduino pin tied to echo pin on the ultrasonic sensor.
 #define MAX_DISTANCE 200 // Maximum distance we want to ping for (in centimeters). Maximum sensor distance is rated at 400-500cm.
-long cylinderLimit = 10;
+long cylinderLimit = 1;
 bool isCylinderFound = false;
 
 
@@ -102,15 +102,19 @@ void loop() {
   switch(phase) {
     case 0:
       //checkForCylinder();
+      Serial.println("line follow");
       lineFollow(sensorValues, correction);
       break;
     case 1:
       //checkForCylinder();
+      Serial.println("missing line");
       navMissingLine();
       break;
     case 2:
+      Serial.println("approach cyl");
       approachCylinder(correction);
     case 3:
+      Serial.println("pickup cyl");
       pickupCylinder();
       break;
   }
@@ -170,8 +174,8 @@ void navMissingLine() {
 }
 void approachCylinder(int correction){
   long dist = sonar.ping_cm();
-  int leftSpeed = dist/cylinderLimit * (baseSpeed + correction);
-  int rightSpeed = dist/cylinderLimit * (baseSpeed - correction);
+  int leftSpeed = (float)dist/(float)cylinderLimit * (baseSpeed + correction);
+  int rightSpeed = (float)dist/(float)cylinderLimit * (baseSpeed - correction);
 
   leftSpeed = constrain(leftSpeed, -maxSpeed, maxSpeed);
   rightSpeed = constrain(rightSpeed, -maxSpeed, maxSpeed);
@@ -195,6 +199,7 @@ void pickupCylinder() {
   //open servo1 up
 
   // Hope for cylinder being picked up
+  Serial.println("pickup cyl");
   while(true) {
       motorLeft.setSpeed(100);
       motorRight.setSpeed(100);
@@ -326,8 +331,12 @@ bool lineFound(uint16_t *sensorValues) {
   }
 }
 bool checkForCylinder() {
+  // long DistanceSum = 0;
+  // for(int i = 0; i<5; i++) {
+  //   DistanceSum += sonar.ping_cm();
+  // }
   long distance = sonar.ping_cm();
-  //delay(500);
+  delay(5);
   Serial.println(distance); // Send ping, get distance in cm and print result (0 = outside set distance range)
   if(distance < cylinderLimit){
     Serial.println("Cylinder within 5cm");
