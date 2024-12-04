@@ -37,9 +37,14 @@ int baseSpeed;
 
 // Definiera svängsekvensen vid korsningar ('L' för vänster, 'R' för höger, 'S' för rakt fram)
 char path[] = {'R', 'L', 'R', 'R', 'L', 'L'}; // Exempel på sekvens
-char missingLinePath[] = {'R','L'}
 int pathLength = sizeof(path) / sizeof(path[0]);
 int pathIndex = 0; // Index för aktuell svänginstruktion
+
+int deadEndFound = 0;
+
+char missingLinePath[] = {'R','L'};
+int missingPathLength = sizeof(missingLinePath) / sizeof(missingLinePath[0]);
+int missingPathIndex = 0;
 
 // Tröskelvärde för att detektera svart linje (justera baserat på dina sensorvärden)
 const uint16_t blackThreshold = 500; // Justera efter behov
@@ -138,10 +143,20 @@ void lineFollow(uint16_t sensorValues, int correction) {
   
 }
 void navMissingLine() {
-  //if high confidence in line found
+  //if line found
   //Move to phase 0
   //else
   //navigate missing path
+  //use cytron encoder to read rpm and turn
+  uint16_t sensorValues[numSensors];
+  qtr.read(sensorValues)
+  if(lineFound(sensorValues)){
+    phase = 0;
+  }
+  else{
+
+  }
+
 }
 
 void calibrateSensors() {
@@ -190,8 +205,6 @@ void handleIntersection(char action) {
   } else if (action == 'S') {
     // Fortsätt rakt fram, inget behöver göras
     Serial.println("Fortsätter rakt fram.");
-  } else if(action == 'M'){
-    phase = 1;
   }
 }
 
