@@ -22,5 +22,5 @@ Pushes / Uploads the current commits to the github repository
 Author, ver
 ## QTRSensors
 Author, ver
-## HCSR04
-Author, ver
+## HCSR04, NewPing
+Tim Eckel, 1.9.7

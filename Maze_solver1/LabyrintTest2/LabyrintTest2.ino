@@ -1,5 +1,6 @@
 #include <QTRSensors.h>
 #include "CytronMotorDriver.h"
+#include <NewPing.h>
 
 // Definiera vilka analoga pins som används
 const uint8_t sensorPins[] = {A0, A1, A2, A3, A4, A5}; // 6 sensorer
@@ -13,11 +14,14 @@ CytronMD motorLeft(PWM_PWM, 9, 10);   // Vänster motor: PWM_A = Pin 9, PWM_B = 
 CytronMD motorRight(PWM_PWM, 3, 5);   // Höger motor: PWM_A = Pin 3, PWM_B = Pin 5
 
 //Ultrasonic 
-#define CM 1      //Centimeter
-#define TP 8      //Trig_pin
-#define EP 9      //Echo_pin
-int cylinderLimit = 5;
+#define TRIGGER_PIN  11  // Arduino pin tied to trigger pin on the ultrasonic sensor.
+#define ECHO_PIN     12  // Arduino pin tied to echo pin on the ultrasonic sensor.
+#define MAX_DISTANCE 200 // Maximum distance we want to ping for (in centimeters). Maximum sensor distance is rated at 400-500cm.
+long cylinderLimit = 10;
 bool isCylinderFound = false;
+
+
+NewPing sonar(TRIGGER_PIN, ECHO_PIN, MAX_DISTANCE); // NewPing setup of pins and maximum distance.
 
 //Phases
 //0: Following line, 1: Navigate missing line, 2: cylinder pickup
@@ -36,7 +40,7 @@ int maxSpeed = 200;
 int baseSpeed;
 
 // Definiera svängsekvensen vid korsningar ('L' för vänster, 'R' för höger, 'S' för rakt fram)
-char path[] = {'R', 'L', 'R', 'R', 'L', 'L'}; // Exempel på sekvens
+char path[] = {'R', 'L', 'L', 'R'}; // Exempel på sekvens
 int pathLength = sizeof(path) / sizeof(path[0]);
 int pathIndex = 0; // Index för aktuell svänginstruktion
 
@@ -82,8 +86,6 @@ void setup() {
 void loop() {
   uint16_t sensorValues[numSensors];
 
-  // Ultrasonic time measurement
-  long microseconds = TP_init();
   // Läs av linjens position med readLineBlack()
   int position = qtr.readLineBlack(sensorValues); // Returnerar 0–5000
 
@@ -96,15 +98,19 @@ void loop() {
   int correction = Kp * error + Ki * integral + Kd * derivative;
 
   lastError = error;
-
+  
   switch(phase) {
     case 0:
+      //checkForCylinder();
       lineFollow(sensorValues, correction);
       break;
     case 1:
+      //checkForCylinder();
       navMissingLine();
       break;
     case 2:
+      approachCylinder(correction);
+    case 3:
       pickupCylinder();
       break;
   }
@@ -116,7 +122,9 @@ void lineFollow(uint16_t sensorValues, int correction) {
 // Beräkna motorhastigheter
   int leftSpeed = baseSpeed + correction;
   int rightSpeed = baseSpeed - correction;
-
+  if(checkForCylinder()){
+    phase = 2;
+  }
   // Begränsa hastigheterna till tillåtna värden
   leftSpeed = constrain(leftSpeed, -maxSpeed, maxSpeed);
   rightSpeed = constrain(rightSpeed, -maxSpeed, maxSpeed);
@@ -160,6 +168,20 @@ void navMissingLine() {
   }
 
 }
+void approachCylinder(int correction){
+  long dist = sonar.ping_cm();
+  int leftSpeed = dist/cylinderLimit * (baseSpeed + correction);
+  int rightSpeed = dist/cylinderLimit * (baseSpeed - correction);
+
+  leftSpeed = constrain(leftSpeed, -maxSpeed, maxSpeed);
+  rightSpeed = constrain(rightSpeed, -maxSpeed, maxSpeed);
+
+  motorLeft.setSpeed(leftSpeed);
+  motorRight.setSpeed(-rightSpeed);
+  if(dist < 1){
+    phase = 3;
+  }
+}
 void pickupCylinder() {
   //move servo0 down
   //wait for this to execute
@@ -173,7 +195,11 @@ void pickupCylinder() {
   //open servo1 up
 
   // Hope for cylinder being picked up
-  phase = 0;
+  while(true) {
+      motorLeft.setSpeed(100);
+      motorRight.setSpeed(100);
+  }
+  //phase = 0;
 }
 
 void calibrateSensors() {
@@ -299,35 +325,17 @@ bool lineFound(uint16_t *sensorValues) {
     return false;
   }
 }
-bool cylinderFound(long time) {
-  if(Distance(time, CM) < cylinderLimit){
+bool checkForCylinder() {
+  long distance = sonar.ping_cm();
+  //delay(500);
+  Serial.println(distance); // Send ping, get distance in cm and print result (0 = outside set distance range)
+  if(distance < cylinderLimit){
+    Serial.println("Cylinder within 5cm");
     return true;
   } else {
+    Serial.println("Cylinder not within 5cm");
     return false;
   }
-}
-long Distance(long time, int flag)
-{
-  /*
   
-  */
-  long distance;
-  if(flag)
-    distance = time /29 / 2  ;     // Distance_CM  = ((Duration of high level)*(Sonic :340m/s))/2
-                                   //              = ((Duration of high level)*(Sonic :0.034 cm/us))/2
-                                   //              = ((Duration of high level)/(Sonic :29.4 cm/us))/2
-  else
-    distance = time / 74 / 2;      // INC
-  return distance;
-}
-long TP_init()
-{                     
-  digitalWrite(TP, LOW);                    
-  delayMicroseconds(2);
-  digitalWrite(TP, HIGH);                 // pull the Trig pin to high level for more than 10us impulse 
-  delayMicroseconds(10);
-  digitalWrite(TP, LOW);
-  long microseconds = pulseIn(EP,HIGH);   // waits for the pin to go HIGH, and returns the length of the pulse in microseconds
-  return microseconds;                    // return microseconds
 }
 
