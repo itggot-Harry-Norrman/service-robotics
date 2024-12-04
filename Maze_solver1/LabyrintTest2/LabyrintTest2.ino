@@ -105,7 +105,8 @@ void loop() {
       navMissingLine();
       break;
     case 2:
-
+      pickupCylinder();
+      break;
   }
 
   delay(1); // Kort fördröjning för att undvika överbelastning
@@ -151,11 +152,10 @@ void navMissingLine() {
   //navigate missing path
   //use cytron encoder to read rpm and turn
   uint16_t sensorValues[numSensors];
-  qtr.read(sensorValues)
+  qtr.read(sensorValues);
   if(lineFound(sensorValues)){
     phase = 0;
-  }
-  else{
+  } else{
 
   }
 
@@ -173,6 +173,7 @@ void pickupCylinder() {
   //open servo1 up
 
   // Hope for cylinder being picked up
+  phase = 0;
 }
 
 void calibrateSensors() {
