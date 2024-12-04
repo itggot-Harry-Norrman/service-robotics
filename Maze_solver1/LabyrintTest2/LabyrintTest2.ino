@@ -20,7 +20,7 @@ int cylinderLimit = 5;
 bool isCylinderFound = false;
 
 //Phases
-//0: Following line, 1: Navigate missing line
+//0: Following line, 1: Navigate missing line, 2: cylinder pickup
 int phase = 0;
 
 // PID-variabler
@@ -104,6 +104,8 @@ void loop() {
     case 1:
       navMissingLine();
       break;
+    case 2:
+
   }
 
   delay(1); // Kort fördröjning för att undvika överbelastning
@@ -157,6 +159,20 @@ void navMissingLine() {
 
   }
 
+}
+void pickupCylinder() {
+  //move servo0 down
+  //wait for this to execute
+
+  //close servo1
+  //wait for this to execute
+
+  //move servo0 up
+  //wait for this to execute
+
+  //open servo1 up
+
+  // Hope for cylinder being picked up
 }
 
 void calibrateSensors() {
