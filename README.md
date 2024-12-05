@@ -18,9 +18,11 @@ Fetches newest version of repository on github
 Pushes / Uploads the current commits to the github repository
 
 # Libraries needed
-## Cytron Motor driver
-Author, ver
+## Cytron Motor drivers library
+Cytron, 1.0.1
 ## QTRSensors
-Author, ver
+Pololu, 4.0.0
 ## HCSR04, NewPing
 Tim Eckel, 1.9.7
+## Servo
+Michael Margolis, Arduino, 1.2.2
