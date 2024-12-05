@@ -1,6 +1,8 @@
+#include <Servo.h>
 #include <QTRSensors.h>
 #include "CytronMotorDriver.h"
 #include <NewPing.h>
+
 
 // Definiera vilka analoga pins som används
 const uint8_t sensorPins[] = {A0, A1, A2, A3, A4, A5}; // 6 sensorer
@@ -8,6 +10,9 @@ const uint8_t numSensors = 6; // Antal sensorer
 
 // Skapa ett QTRSensors-objekt
 QTRSensors qtr;
+
+Servo myServoLarge;
+Servo myServoSmall;
 
 // Motorstyrning för MDD3A
 CytronMD motorLeft(PWM_PWM, 9, 10);   // Vänster motor: PWM_A = Pin 9, PWM_B = Pin 10
@@ -24,8 +29,8 @@ bool isCylinderFound = false;
 NewPing sonar(TRIGGER_PIN, ECHO_PIN, MAX_DISTANCE); // NewPing setup of pins and maximum distance.
 
 //Phases
-//0: Following line, 1: Navigate missing line, 2: cylinder pickup
-int phase = 0;
+//0: Following line, 1: Navigate missing line, 2: approach cylinder, 3: cylinder pickup
+int phase = 3;
 unsigned long timeSince;
 unsigned long timeLimit = 100;
 
@@ -51,6 +56,9 @@ int deadEndFound = 0;
 char missingLinePath[] = {'R','L'};
 int missingPathLength = sizeof(missingLinePath) / sizeof(missingLinePath[0]);
 int missingPathIndex = 0;
+
+int currentLargePos;
+int currentSmallPos;
 
 // Tröskelvärde för att detektera svart linje (justera baserat på dina sensorvärden)
 const uint16_t blackThreshold = 500; // Justera efter behov
@@ -84,7 +92,16 @@ void setup() {
   motorRight.setSpeed(0);
   baseSpeed = maxSpeed / 2;
   timeSince = millis();
+
+  myServoLarge.attach(8);  // attaches the servo on pin 8 to the Servo object
+  myServoSmall.attach(13);  // attaches the servo on pin 13 to the Servo object
+  myServoLarge.write(90);
+  currentLargePos = 90;
+  myServoSmall.write(90);
+  currentSmallPos = 90;
+  delay(200);
 }
+
 
 void loop() {
   uint16_t sensorValues[numSensors];
@@ -193,6 +210,29 @@ void approachCylinder(int correction){
   }
 }
 void pickupCylinder() {
+  while(true){
+    delay(500);
+    moveLargeServo(120);
+    //myServoLarge.write(120);
+    delay(500);
+    moveSmallServo(90);
+    moveLargeServo(180);
+    //myServoSmall.write(60);
+    //myServoLarge.write(180);
+    delay(500);
+    moveSmallServo(170);
+    Serial.println("smallest spot");
+    //delay(200000);
+    //myServoSmall.write(0);
+    delay(500);
+    moveLargeServo(70);
+    moveSmallServo(65);
+    //myServoLarge.write(90);
+    delay(500);
+    moveSmallServo(175);
+    //myServoSmall.write(70);
+    delay(500);
+  }
   //move servo0 down
   //wait for this to execute
 
@@ -212,10 +252,49 @@ void pickupCylinder() {
   }
   //phase = 0;
 }
+void moveLargeServo(int pos){
+  int startPos = currentLargePos;
+  int i = startPos;
+  if(startPos < pos){
+    for(i = startPos; i < pos;i++ ) {
+      myServoLarge.write(i);
+      currentLargePos = i;
+      delay(15);
+    }
+  } else {
+    for(i = startPos; i > pos;i--) {
+      myServoLarge.write(i);
+      currentLargePos = i;
+      delay(15);
+    }
+  }
+  
+}
+void moveSmallServo(int pos){
+  int startPos = currentSmallPos;
+  int i = startPos;
+  if(startPos < pos){
+    //Serial.println("startPos=" + String(i) + " MoveTo=" + String(pos));
+    for(i = startPos; i < pos;i++ ) {
+      myServoSmall.write(i);
+      currentSmallPos = i;
+      delay(15);
+    }
+  } else {
+    //Serial.println("startPos=" + String(i) + " MoveTo=" + String(pos));
+    for(i = startPos; i > pos;i--) {
+      myServoSmall.write(i);
+      currentSmallPos = i;
+      delay(15);
+    }
+  }
+  
+}
 
 void calibrateSensors() {
   // Rotera roboten och kalibrera sensorerna
-  for (int i = 0; i < 400; i++) {
+  //400
+  for (int i = 0; i < 10; i++) {
     qtr.calibrate();
 
     // Flytta roboten lite för att exponera olika ytor (rotera)
