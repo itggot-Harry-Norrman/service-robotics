@@ -17,7 +17,7 @@ CytronMD motorRight(PWM_PWM, 3, 5);   // Höger motor: PWM_A = Pin 3, PWM_B = Pi
 #define TRIGGER_PIN  11  // Arduino pin tied to trigger pin on the ultrasonic sensor.
 #define ECHO_PIN     12  // Arduino pin tied to echo pin on the ultrasonic sensor.
 #define MAX_DISTANCE 200 // Maximum distance we want to ping for (in centimeters). Maximum sensor distance is rated at 400-500cm.
-long cylinderLimit = 1;
+long cylinderLimit = 5;
 bool isCylinderFound = false;
 
 
@@ -26,6 +26,8 @@ NewPing sonar(TRIGGER_PIN, ECHO_PIN, MAX_DISTANCE); // NewPing setup of pins and
 //Phases
 //0: Following line, 1: Navigate missing line, 2: cylinder pickup
 int phase = 0;
+unsigned long timeSince;
+unsigned long timeLimit = 100;
 
 // PID-variabler
 float Kp = 0.2;  // Justera efter behov
@@ -55,7 +57,7 @@ const uint16_t blackThreshold = 500; // Justera efter behov
 
 // *** Nytt: Variabler för kalibreringsfördröjning ***
 unsigned long calibrationEndTime;
-const unsigned long calibrationDelay = 1000; // 1 sekund
+const unsigned long calibrationDelay = 2000; // 1 sekund
 // *** Slut på nytt ***
 
 void setup() {
@@ -81,6 +83,7 @@ void setup() {
   motorLeft.setSpeed(0);
   motorRight.setSpeed(0);
   baseSpeed = maxSpeed / 2;
+  timeSince = millis();
 }
 
 void loop() {
@@ -126,8 +129,11 @@ void lineFollow(uint16_t sensorValues, int correction) {
 // Beräkna motorhastigheter
   int leftSpeed = baseSpeed + correction;
   int rightSpeed = baseSpeed - correction;
-  if(checkForCylinder()){
-    phase = 2;
+  if(millis()-timeSince > timeLimit) {
+    timeSince = millis();
+    if(checkForCylinder()){
+      phase = 2;
+    }
   }
   // Begränsa hastigheterna till tillåtna värden
   leftSpeed = constrain(leftSpeed, -maxSpeed, maxSpeed);
@@ -247,8 +253,14 @@ void handleIntersection(char action) {
   Serial.println(action);
 
   if (action == 'L') {
+    motorLeft.setSpeed(100);
+  motorRight.setSpeed(-100);
+  delay(200);
     turnLeft();
   } else if (action == 'R') {
+     motorLeft.setSpeed(100);
+  motorRight.setSpeed(-100);
+  delay(200);
     turnRight();
   } else if (action == 'S') {
     // Fortsätt rakt fram, inget behöver göras
@@ -336,7 +348,7 @@ bool checkForCylinder() {
   //   DistanceSum += sonar.ping_cm();
   // }
   long distance = sonar.ping_cm();
-  delay(5);
+  
   Serial.println(distance); // Send ping, get distance in cm and print result (0 = outside set distance range)
   if(distance < cylinderLimit){
     Serial.println("Cylinder within 5cm");
