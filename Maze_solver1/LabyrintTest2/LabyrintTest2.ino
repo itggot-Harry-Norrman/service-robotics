@@ -22,7 +22,7 @@ CytronMD motorRight(PWM_PWM, 3, 5);   // Höger motor: PWM_A = Pin 3, PWM_B = Pi
 #define TRIGGER_PIN  11  // Arduino pin tied to trigger pin on the ultrasonic sensor.
 #define ECHO_PIN     12  // Arduino pin tied to echo pin on the ultrasonic sensor.
 #define MAX_DISTANCE 200 // Maximum distance we want to ping for (in centimeters). Maximum sensor distance is rated at 400-500cm.
-long cylinderLimit = 5;
+long cylinderLimit = 12;
 bool isCylinderFound = false;
 
 
@@ -30,7 +30,7 @@ NewPing sonar(TRIGGER_PIN, ECHO_PIN, MAX_DISTANCE); // NewPing setup of pins and
 
 //Phases
 //0: Following line, 1: Navigate missing line, 2: approach cylinder, 3: cylinder pickup
-int phase = 3;
+int phase = 0;
 unsigned long timeSince;
 unsigned long timeLimit = 100;
 
@@ -123,7 +123,7 @@ void loop() {
     case 0:
       //checkForCylinder();
       Serial.println("line follow");
-      lineFollow(sensorValues, correction);
+      lineFollow(*sensorValues, correction);
       break;
     case 1:
       //checkForCylinder();
@@ -142,7 +142,7 @@ void loop() {
   delay(1); // Kort fördröjning för att undvika överbelastning
 }
 
-void lineFollow(uint16_t sensorValues, int correction) {
+void lineFollow(uint16_t *sensorValues, int correction) {
 // Beräkna motorhastigheter
   int leftSpeed = baseSpeed + correction;
   int rightSpeed = baseSpeed - correction;
@@ -186,13 +186,20 @@ void navMissingLine() {
   //else
   //navigate missing path
   //use cytron encoder to read rpm and turn
-  uint16_t sensorValues[numSensors];
+  
+  //uint16_t sensorValues[numSensors];
+  //qtr.read(sensorValues);
+  while(true){
+    uint16_t sensorValues[numSensors];
   qtr.read(sensorValues);
-  if(lineFound(sensorValues)){
-    phase = 0;
-  } else{
-
+    delay(100);
+    isIntersection(*sensorValues);
   }
+  //if(lineFound(sensorValues)){
+   // phase = 0;
+  //} else{
+
+  
 
 }
 void approachCylinder(int correction){
@@ -205,12 +212,11 @@ void approachCylinder(int correction){
 
   motorLeft.setSpeed(leftSpeed);
   motorRight.setSpeed(-rightSpeed);
-  if(dist < 1){
+  if(dist < 10){
     phase = 3;
   }
 }
 void pickupCylinder() {
-  while(true){
     delay(500);
     moveLargeServo(120);
     //myServoLarge.write(120);
@@ -225,14 +231,13 @@ void pickupCylinder() {
     //delay(200000);
     //myServoSmall.write(0);
     delay(500);
-    moveLargeServo(70);
-    moveSmallServo(65);
+    moveLargeServo(74);
+    moveSmallServo(50);
     //myServoLarge.write(90);
     delay(500);
     moveSmallServo(175);
     //myServoSmall.write(70);
     delay(500);
-  }
   //move servo0 down
   //wait for this to execute
 
@@ -245,12 +250,8 @@ void pickupCylinder() {
   //open servo1 up
 
   // Hope for cylinder being picked up
-  Serial.println("pickup cyl");
-  while(true) {
-      motorLeft.setSpeed(100);
-      motorRight.setSpeed(100);
-  }
-  //phase = 0;
+
+  phase = 0;
 }
 void moveLargeServo(int pos){
   int startPos = currentLargePos;
@@ -294,7 +295,7 @@ void moveSmallServo(int pos){
 void calibrateSensors() {
   // Rotera roboten och kalibrera sensorerna
   //400
-  for (int i = 0; i < 10; i++) {
+  for (int i = 0; i < 400; i++) {
     qtr.calibrate();
 
     // Flytta roboten lite för att exponera olika ytor (rotera)
@@ -312,7 +313,7 @@ void calibrateSensors() {
 // Funktion för att detektera korsning
 bool isIntersection(uint16_t *sensorValues) {
   // Detektera korsning när de två vänstra eller två högra sensorerna detekterar svart linje men inte motsatta sidan
-
+  Serial.println(String(sensorValues[0]) + " " + String(sensorValues[1]));
   // Vänster korsning: två vänstra sensorer > blackThreshold, högra sensorn < blackThreshold
   bool leftIntersection = (sensorValues[0] > blackThreshold && sensorValues[1] > blackThreshold && sensorValues[5] < blackThreshold);
 
