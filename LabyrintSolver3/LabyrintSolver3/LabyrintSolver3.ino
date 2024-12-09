@@ -39,7 +39,8 @@ int currentSmallPos = 165;
 int phase = 0;
 
 // *** Path-sekvens för korsningar *** //
-char path[] = {'R', 'L', 'L', 'R', 'L', 'R', 'R', 'L'}; 
+//char path[] = {'R', 'L', 'L', 'R', 'L', 'R', 'R', 'L'}; 
+char path[] = {'R','r','L','L','d','S','S','S'};
 int pathLength = sizeof(path) / sizeof(path[0]);
 int pathIndex = 0; 
 
@@ -60,6 +61,7 @@ void setup() {
   Serial.println("Startar kalibrering...");
   calibrateSensors();
   Serial.println("Kalibrering klar!");
+  alignWithLine();
 
   // Servoinit
   myServoLarge.attach(10);
@@ -80,6 +82,10 @@ void loop() {
   
   int derivative = error - lastError;
   int correction = Kp * error + Kd * derivative;
+  Serial.println(String(correction));
+  if(correction > 250 || correction < -250){
+    correction = 0;
+  }
   lastError = error;
 
   switch (phase) {
@@ -102,18 +108,6 @@ void lineFollow(uint16_t *sensorValues, int correction) {
   leftSpeed = constrain(leftSpeed, -maxSpeed, maxSpeed);
   rightSpeed = constrain(rightSpeed, -maxSpeed, maxSpeed);
 
-  motorLeft.setSpeed(leftSpeed);
-  motorRight.setSpeed(-rightSpeed);
-
-  // Kolla cylinder
-  if (checkForCylinder() && (millis() - lastPickupTime > 2000)) {
-    motorLeft.setSpeed(-50);
-    motorRight.setSpeed(-50);
-    delay(200);
-    phase = 2;
-    return;
-  }
-
   // Kolla korsning
   if (isIntersection(sensorValues)) {
     motorLeft.setSpeed(0);
@@ -125,7 +119,23 @@ void lineFollow(uint16_t *sensorValues, int correction) {
     } else {
       Serial.println("Inga fler instruktioner. Fortsätter rakt fram.");
     }
+    return;
   }
+
+  motorLeft.setSpeed(leftSpeed);
+  motorRight.setSpeed(-rightSpeed);
+
+  // Kolla cylinder
+  if (checkForCylinder() && (millis() - lastPickupTime > 2000)) {
+    motorLeft.setSpeed(-50);
+    motorRight.setSpeed(-50);
+    //old batteries 200 5.3v
+    delay(150);
+    phase = 2;
+    return;
+  }
+
+
 }
 
 // Upphämtning cylinder
@@ -222,9 +232,9 @@ bool isIntersection(uint16_t *sensorValues) {
   }
 
   // Ingen korsningsdetektering 3 sek efter upphämtning
-  if (millis() - lastPickupTime < 3000) {
+  /*if (millis() - lastPickupTime < 3000) {
     return false;
-  }
+  }*/
 
   // Ingen korsningsdetektering 2 sek efter senaste sväng
   if (millis() - lastTurnTime < 2000) {
@@ -234,8 +244,9 @@ bool isIntersection(uint16_t *sensorValues) {
   bool leftIntersection = (sensorValues[0] > blackThreshold && sensorValues[1] > blackThreshold && sensorValues[5] < blackThreshold);
   bool rightIntersection = (sensorValues[4] > blackThreshold && sensorValues[5] > blackThreshold && sensorValues[0] < blackThreshold);
   bool tIntersection = (sensorValues[0] > blackThreshold && sensorValues[5] > blackThreshold);
+  bool missingLine = (sensorValues[0] < blackThreshold && sensorValues[1] < blackThreshold && sensorValues[2] < blackThreshold && sensorValues[3] < blackThreshold && sensorValues[4] < blackThreshold && sensorValues[5] < blackThreshold);
 
-  return (leftIntersection || rightIntersection || tIntersection);
+  return (leftIntersection || rightIntersection || tIntersection || missingLine);
 }
 
 // Hantera sväng
@@ -252,7 +263,14 @@ void handleIntersection(char action) {
   } else if (action == 'R') {
     turnRight();
   } else if (action == 'S') {
-    // Rakt fram
+    continueStraight();
+    Serial.println("kör rakt fram");
+  } else if(action == 'r'){
+    rightWithoutLine();
+  } else if(action == 'l'){
+    leftWithoutLine();
+  } else if(action == 'd'){
+    deadEnd();
   }
 }
 
@@ -308,6 +326,95 @@ void turnRight() {
 
   // Registrera tidpunkt för avslutad sväng
   lastTurnTime = millis();
+}
+
+void continueStraight() {
+  motorLeft.setSpeed(maxSpeed / 2);
+  motorRight.setSpeed(-maxSpeed / 2);
+  delay(250);
+}
+
+void rightWithoutLine() {
+  motorLeft.setSpeed(maxSpeed / 2);
+  motorRight.setSpeed(-maxSpeed / 2);
+  // old batteries 600
+  delay(250);
+  motorLeft.setSpeed(-maxSpeed / 2);
+  motorRight.setSpeed(-maxSpeed / 2);
+  // old batteries 1000
+  delay(800);
+  motorLeft.setSpeed(maxSpeed / 2);
+  motorRight.setSpeed(-maxSpeed / 2);
+    uint16_t sensorValues[numSensors];
+  while (true) {
+    qtr.read(sensorValues);
+    if (lineFound(sensorValues)) {
+      break;
+    }
+    delay(10);
+  }
+}
+
+void leftWithoutLine() {
+  motorLeft.setSpeed(maxSpeed / 2);
+  motorRight.setSpeed(-maxSpeed / 2);
+  // old batteries 600
+  delay(250);
+  motorLeft.setSpeed(maxSpeed / 2);
+  motorRight.setSpeed(maxSpeed / 2);
+  // old batteries 1000
+  delay(800);
+  motorLeft.setSpeed(maxSpeed / 2);
+  motorRight.setSpeed(-maxSpeed / 2);
+    uint16_t sensorValues[numSensors];
+  while (true) {
+    qtr.read(sensorValues);
+    if (lineFound(sensorValues)) {
+      break;
+    }
+    delay(10);
+  }
+}
+
+void deadEnd() {
+ Serial.println("Svänger höger 180 grader");
+
+  motorLeft.setSpeed(-maxSpeed / 2);
+  motorRight.setSpeed(-maxSpeed / 2);
+  //delay(1000);
+
+  uint16_t sensorValues[numSensors];
+  while (true) {
+    qtr.read(sensorValues);
+    if (lineFound(sensorValues)) {
+      break;
+    }
+    delay(10);
+  }
+
+  lastError = 0;
+
+  motorLeft.setSpeed(maxSpeed / 2);
+  motorRight.setSpeed(-maxSpeed / 2);
+  delay(150);
+
+  // Registrera tidpunkt för avslutad sväng
+  lastTurnTime = millis();
+}
+
+void alignWithLine(){
+  motorLeft.setSpeed(maxSpeed / 2);
+  motorRight.setSpeed(maxSpeed / 2);
+  uint16_t sensorValues[numSensors];
+  while (true) {
+    qtr.read(sensorValues);
+    if (lineFound(sensorValues)) {
+      break;
+    }
+    delay(1);
+  }
+  motorLeft.setSpeed(0);
+  motorRight.setSpeed(0);
 }
 
 // Linje hittad igen efter sväng
