@@ -1,6 +1,8 @@
+#include <Servo.h>
 #include <QTRSensors.h>
 #include "CytronMotorDriver.h"
 #include <NewPing.h>
+
 
 // Definiera vilka analoga pins som används
 const uint8_t sensorPins[] = {A0, A1, A2, A3, A4, A5}; // 6 sensorer
@@ -8,6 +10,9 @@ const uint8_t numSensors = 6; // Antal sensorer
 
 // Skapa ett QTRSensors-objekt
 QTRSensors qtr;
+
+Servo myServoLarge;
+Servo myServoSmall;
 
 // Motorstyrning för MDD3A
 CytronMD motorLeft(PWM_PWM, 9, 10);   // Vänster motor: PWM_A = Pin 9, PWM_B = Pin 10
@@ -17,14 +22,14 @@ CytronMD motorRight(PWM_PWM, 3, 5);   // Höger motor: PWM_A = Pin 3, PWM_B = Pi
 #define TRIGGER_PIN  11  // Arduino pin tied to trigger pin on the ultrasonic sensor.
 #define ECHO_PIN     12  // Arduino pin tied to echo pin on the ultrasonic sensor.
 #define MAX_DISTANCE 200 // Maximum distance we want to ping for (in centimeters). Maximum sensor distance is rated at 400-500cm.
-long cylinderLimit = 5;
+long cylinderLimit = 12;
 bool isCylinderFound = false;
 
 
 NewPing sonar(TRIGGER_PIN, ECHO_PIN, MAX_DISTANCE); // NewPing setup of pins and maximum distance.
 
 //Phases
-//0: Following line, 1: Navigate missing line, 2: cylinder pickup
+//0: Following line, 1: Navigate missing line, 2: approach cylinder, 3: cylinder pickup
 int phase = 0;
 unsigned long timeSince;
 unsigned long timeLimit = 100;
@@ -51,6 +56,9 @@ int deadEndFound = 0;
 char missingLinePath[] = {'R','L'};
 int missingPathLength = sizeof(missingLinePath) / sizeof(missingLinePath[0]);
 int missingPathIndex = 0;
+
+int currentLargePos;
+int currentSmallPos;
 
 // Tröskelvärde för att detektera svart linje (justera baserat på dina sensorvärden)
 const uint16_t blackThreshold = 500; // Justera efter behov
@@ -84,7 +92,16 @@ void setup() {
   motorRight.setSpeed(0);
   baseSpeed = maxSpeed / 2;
   timeSince = millis();
+
+  myServoLarge.attach(8);  // attaches the servo on pin 8 to the Servo object
+  myServoSmall.attach(13);  // attaches the servo on pin 13 to the Servo object
+  myServoLarge.write(90);
+  currentLargePos = 90;
+  myServoSmall.write(90);
+  currentSmallPos = 90;
+  delay(200);
 }
+
 
 void loop() {
   uint16_t sensorValues[numSensors];
@@ -106,7 +123,7 @@ void loop() {
     case 0:
       //checkForCylinder();
       Serial.println("line follow");
-      lineFollow(sensorValues, correction);
+      lineFollow(*sensorValues, correction);
       break;
     case 1:
       //checkForCylinder();
@@ -116,6 +133,7 @@ void loop() {
     case 2:
       Serial.println("approach cyl");
       approachCylinder(correction);
+      break;
     case 3:
       Serial.println("pickup cyl");
       pickupCylinder();
@@ -125,7 +143,7 @@ void loop() {
   delay(1); // Kort fördröjning för att undvika överbelastning
 }
 
-void lineFollow(uint16_t sensorValues, int correction) {
+void lineFollow(uint16_t *sensorValues, int correction) {
 // Beräkna motorhastigheter
   int leftSpeed = baseSpeed + correction;
   int rightSpeed = baseSpeed - correction;
@@ -164,18 +182,41 @@ void lineFollow(uint16_t sensorValues, int correction) {
   
 }
 void navMissingLine() {
-  //if line found
-  //Move to phase 0
-  //else
-  //navigate missing path
-  //use cytron encoder to read rpm and turn
-  uint16_t sensorValues[numSensors];
-  qtr.read(sensorValues);
-  if(lineFound(sensorValues)){
-    phase = 0;
-  } else{
+  //experiment with speed and delay
+  motorLeft.setSpeed(100);
+  motorRight.setSpeed(100);
+  
+  delay(50);
+  //if next  == right
+  // turnRight
+  // else
+  // turnLeft
 
-  }
+  //experiment with speed and delay
+  motorLeft.setSpeed(100);
+  motorRight.setSpeed(100);
+  delay(50);
+
+  //if(lineFound(sensorValues)){
+   // phase = 0;
+  //} else{
+  // not sure either 
+  // do some kind of line search 
+  // or 
+  // do nothing and be sure we actually find the line
+  //}
+
+  //uint16_t sensorValues[numSensors];
+  //qtr.read(sensorValues);
+  //while(true){
+  //  uint16_t sensorValues[numSensors];
+  //  qtr.read(sensorValues);
+  //  delay(100);
+  //  isIntersection(*sensorValues);
+  //}
+
+
+  
 
 }
 void approachCylinder(int correction){
@@ -188,11 +229,32 @@ void approachCylinder(int correction){
 
   motorLeft.setSpeed(leftSpeed);
   motorRight.setSpeed(-rightSpeed);
-  if(dist < 1){
+  if(dist < 10){
     phase = 3;
   }
 }
 void pickupCylinder() {
+    delay(500);
+    moveLargeServo(120);
+    //myServoLarge.write(120);
+    delay(500);
+    moveSmallServo(90);
+    moveLargeServo(180);
+    //myServoSmall.write(60);
+    //myServoLarge.write(180);
+    delay(500);
+    moveSmallServo(170);
+    Serial.println("smallest spot");
+    //delay(200000);
+    //myServoSmall.write(0);
+    delay(500);
+    moveLargeServo(74);
+    moveSmallServo(50);
+    //myServoLarge.write(90);
+    delay(500);
+    moveSmallServo(175);
+    //myServoSmall.write(70);
+    delay(500);
   //move servo0 down
   //wait for this to execute
 
@@ -205,16 +267,51 @@ void pickupCylinder() {
   //open servo1 up
 
   // Hope for cylinder being picked up
-  Serial.println("pickup cyl");
-  while(true) {
-      motorLeft.setSpeed(100);
-      motorRight.setSpeed(100);
+
+  phase = 0;
+}
+void moveLargeServo(int pos){
+  int startPos = currentLargePos;
+  int i = startPos;
+  if(startPos < pos){
+    for(i = startPos; i < pos;i++ ) {
+      myServoLarge.write(i);
+      currentLargePos = i;
+      delay(15);
+    }
+  } else {
+    for(i = startPos; i > pos;i--) {
+      myServoLarge.write(i);
+      currentLargePos = i;
+      delay(15);
+    }
   }
-  //phase = 0;
+  
+}
+void moveSmallServo(int pos){
+  int startPos = currentSmallPos;
+  int i = startPos;
+  if(startPos < pos){
+    //Serial.println("startPos=" + String(i) + " MoveTo=" + String(pos));
+    for(i = startPos; i < pos;i++ ) {
+      myServoSmall.write(i);
+      currentSmallPos = i;
+      delay(15);
+    }
+  } else {
+    //Serial.println("startPos=" + String(i) + " MoveTo=" + String(pos));
+    for(i = startPos; i > pos;i--) {
+      myServoSmall.write(i);
+      currentSmallPos = i;
+      delay(15);
+    }
+  }
+  
 }
 
 void calibrateSensors() {
   // Rotera roboten och kalibrera sensorerna
+  //400
   for (int i = 0; i < 400; i++) {
     qtr.calibrate();
 
@@ -233,7 +330,7 @@ void calibrateSensors() {
 // Funktion för att detektera korsning
 bool isIntersection(uint16_t *sensorValues) {
   // Detektera korsning när de två vänstra eller två högra sensorerna detekterar svart linje men inte motsatta sidan
-
+  Serial.println(String(sensorValues[0]) + " " + String(sensorValues[1]));
   // Vänster korsning: två vänstra sensorer > blackThreshold, högra sensorn < blackThreshold
   bool leftIntersection = (sensorValues[0] > blackThreshold && sensorValues[1] > blackThreshold && sensorValues[5] < blackThreshold);
 
@@ -343,10 +440,7 @@ bool lineFound(uint16_t *sensorValues) {
   }
 }
 bool checkForCylinder() {
-  // long DistanceSum = 0;
-  // for(int i = 0; i<5; i++) {
-  //   DistanceSum += sonar.ping_cm();
-  // }
+  
   long distance = sonar.ping_cm();
   
   Serial.println(distance); // Send ping, get distance in cm and print result (0 = outside set distance range)
