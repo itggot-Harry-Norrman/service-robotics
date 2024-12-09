@@ -133,6 +133,7 @@ void loop() {
     case 2:
       Serial.println("approach cyl");
       approachCylinder(correction);
+      break;
     case 3:
       Serial.println("pickup cyl");
       pickupCylinder();
@@ -181,23 +182,39 @@ void lineFollow(uint16_t *sensorValues, int correction) {
   
 }
 void navMissingLine() {
-  //if line found
-  //Move to phase 0
-  //else
-  //navigate missing path
-  //use cytron encoder to read rpm and turn
+  //experiment with speed and delay
+  motorLeft.setSpeed(100);
+  motorRight.setSpeed(100);
   
-  //uint16_t sensorValues[numSensors];
-  //qtr.read(sensorValues);
-  while(true){
-    uint16_t sensorValues[numSensors];
-  qtr.read(sensorValues);
-    delay(100);
-    isIntersection(*sensorValues);
-  }
+  delay(50);
+  //if next  == right
+  // turnRight
+  // else
+  // turnLeft
+
+  //experiment with speed and delay
+  motorLeft.setSpeed(100);
+  motorRight.setSpeed(100);
+  delay(50);
+
   //if(lineFound(sensorValues)){
    // phase = 0;
   //} else{
+  // not sure either 
+  // do some kind of line search 
+  // or 
+  // do nothing and be sure we actually find the line
+  //}
+
+  //uint16_t sensorValues[numSensors];
+  //qtr.read(sensorValues);
+  //while(true){
+  //  uint16_t sensorValues[numSensors];
+  //  qtr.read(sensorValues);
+  //  delay(100);
+  //  isIntersection(*sensorValues);
+  //}
+
 
   
 
@@ -423,10 +440,7 @@ bool lineFound(uint16_t *sensorValues) {
   }
 }
 bool checkForCylinder() {
-  // long DistanceSum = 0;
-  // for(int i = 0; i<5; i++) {
-  //   DistanceSum += sonar.ping_cm();
-  // }
+  
   long distance = sonar.ping_cm();
   
   Serial.println(distance); // Send ping, get distance in cm and print result (0 = outside set distance range)
