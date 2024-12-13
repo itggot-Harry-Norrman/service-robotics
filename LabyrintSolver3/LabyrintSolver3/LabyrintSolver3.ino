@@ -8,6 +8,7 @@ const uint8_t sensorPins[] = {A0, A1, A2, A3, A4, A5};
 const uint8_t numSensors = 6; 
 QTRSensors qtr;
 
+
 // Motorer (Cytron MDD3A)
 CytronMD motorLeft(PWM_PWM, 6, 11);
 CytronMD motorRight(PWM_PWM, 3, 5);
@@ -40,11 +41,13 @@ int phase = 0;
 
 // *** Path-sekvens för korsningar *** //
 //char path[] = {'R', 'L', 'L', 'R', 'L', 'R', 'R', 'L'}; 
-char path[] = {'R','r','L','L','d','S','S','S'};
+// char path[] = {'R','r','L','L','d','S','S','L','l','S','R','L','L','d','R','R','L','R','R','R','d','L','L','R','l','S'};
+char path[] = {'L','l','L'};
 int pathLength = sizeof(path) / sizeof(path[0]);
 int pathIndex = 0; 
 
 // Tröskel för svart linje
+// originally 500
 const uint16_t blackThreshold = 500;
 
 // Tider
@@ -82,7 +85,7 @@ void loop() {
   
   int derivative = error - lastError;
   int correction = Kp * error + Kd * derivative;
-  Serial.println(String(correction));
+  // Serial.println(String(correction));
   if(correction > 250 || correction < -250){
     correction = 0;
   }
@@ -215,8 +218,8 @@ bool checkForCylinder() {
     return false;
   }
   long distance = sonar.ping_cm();
-  Serial.print("Distans: ");
-  Serial.println(distance);
+  // Serial.print("Distans: ");
+  // Serial.println(distance);
   if (distance > 0 && distance < cylinderLimit) {
     Serial.println("Cylinder detected!");
     return true;
@@ -237,7 +240,7 @@ bool isIntersection(uint16_t *sensorValues) {
   }*/
 
   // Ingen korsningsdetektering 2 sek efter senaste sväng
-  if (millis() - lastTurnTime < 2000) {
+  if (millis() - lastTurnTime < 1000) {
     return false;
   }
 
@@ -245,7 +248,18 @@ bool isIntersection(uint16_t *sensorValues) {
   bool rightIntersection = (sensorValues[4] > blackThreshold && sensorValues[5] > blackThreshold && sensorValues[0] < blackThreshold);
   bool tIntersection = (sensorValues[0] > blackThreshold && sensorValues[5] > blackThreshold);
   bool missingLine = (sensorValues[0] < blackThreshold && sensorValues[1] < blackThreshold && sensorValues[2] < blackThreshold && sensorValues[3] < blackThreshold && sensorValues[4] < blackThreshold && sensorValues[5] < blackThreshold);
-
+  if(leftIntersection){
+    Serial.println("left inter");
+  }
+  if(rightIntersection){
+    Serial.println("right inter");
+  }
+  if(tIntersection){
+    Serial.println("t inter");
+  }
+  if(missingLine) {
+    Serial.println("missing line");
+  }
   return (leftIntersection || rightIntersection || tIntersection || missingLine);
 }
 
@@ -256,18 +270,22 @@ void handleIntersection(char action) {
   }
   
   Serial.print("Hanterar korsning: ");
-  Serial.println(action);
+  // Serial.println(action);
 
   if (action == 'L') {
     turnLeft();
   } else if (action == 'R') {
     turnRight();
   } else if (action == 'S') {
-    continueStraight();
     Serial.println("kör rakt fram");
+    continueStraight();
+    
   } else if(action == 'r'){
+    Serial.println("Svänger höger utan linje");
     rightWithoutLine();
+    
   } else if(action == 'l'){
+    Serial.println("Svänger vänster utan linje");
     leftWithoutLine();
   } else if(action == 'd'){
     deadEnd();
@@ -277,40 +295,40 @@ void handleIntersection(char action) {
 // Sväng vänster
 void turnLeft() {
   Serial.println("Svänger vänster");
-  
   motorLeft.setSpeed(maxSpeed / 2);
-  motorRight.setSpeed(maxSpeed / 2);
-  delay(500);
-
-  uint16_t sensorValues[numSensors];
+  motorRight.setSpeed(-maxSpeed / 2);
+  delay(250);
   while (true) {
+    motorLeft.setSpeed(maxSpeed / 2);
+    motorRight.setSpeed(maxSpeed / 2);
+  // delay(500);
+
+    uint16_t sensorValues[numSensors];
+
     qtr.read(sensorValues);
     if (lineFound(sensorValues)) {
       break;
     }
     delay(10);
   }
-
+  // delay(50);
   lastError = 0;
-
-  motorLeft.setSpeed(maxSpeed / 2);
-  motorRight.setSpeed(-maxSpeed / 2);
-  delay(150);
-
-  // Registrera tidpunkt för avslutad sväng
   lastTurnTime = millis();
 }
 
 // Sväng höger
 void turnRight() {
   Serial.println("Svänger höger");
-
-  motorLeft.setSpeed(-maxSpeed / 2);
+  motorLeft.setSpeed(maxSpeed / 2);
   motorRight.setSpeed(-maxSpeed / 2);
-  delay(500);
-
-  uint16_t sensorValues[numSensors];
+  delay(250);
   while (true) {
+    motorLeft.setSpeed(-maxSpeed / 2);
+    motorRight.setSpeed(-maxSpeed / 2);
+  // delay(500);
+
+    uint16_t sensorValues[numSensors];
+
     qtr.read(sensorValues);
     if (lineFound(sensorValues)) {
       break;
@@ -320,25 +338,47 @@ void turnRight() {
 
   lastError = 0;
 
-  motorLeft.setSpeed(maxSpeed / 2);
-  motorRight.setSpeed(-maxSpeed / 2);
-  delay(150);
+  // motorLeft.setSpeed(maxSpeed / 2);
+  // motorRight.setSpeed(-maxSpeed / 2);
+  // delay(150);
 
   // Registrera tidpunkt för avslutad sväng
   lastTurnTime = millis();
 }
 
 void continueStraight() {
-  motorLeft.setSpeed(maxSpeed / 2);
-  motorRight.setSpeed(-maxSpeed / 2);
-  delay(250);
+  int error;
+  int position;
+  long startTime = millis();
+  long duration = 500;
+  while(millis() - startTime < duration){
+    uint16_t sensorValues[numSensors];
+    position = qtr.readLineBlack(sensorValues);
+    error = position - 2500;
+    
+    int derivative = error - lastError;
+    int correction = Kp * error + Kd * derivative;
+    lastError = error;
+
+    int leftSpeed = baseSpeed + correction;
+    int rightSpeed = baseSpeed - correction;
+
+    leftSpeed = constrain(leftSpeed, -maxSpeed, maxSpeed);
+    rightSpeed = constrain(rightSpeed, -maxSpeed, maxSpeed);
+
+    motorLeft.setSpeed(leftSpeed);
+    motorRight.setSpeed(-rightSpeed);
+    delay(1);
+  }
+  // delay(250);
+  lastTurnTime = millis();
 }
 
 void rightWithoutLine() {
   motorLeft.setSpeed(maxSpeed / 2);
   motorRight.setSpeed(-maxSpeed / 2);
   // old batteries 600
-  delay(250);
+  delay(1000);
   motorLeft.setSpeed(-maxSpeed / 2);
   motorRight.setSpeed(-maxSpeed / 2);
   // old batteries 1000
@@ -359,11 +399,11 @@ void leftWithoutLine() {
   motorLeft.setSpeed(maxSpeed / 2);
   motorRight.setSpeed(-maxSpeed / 2);
   // old batteries 600
-  delay(250);
+  delay(1500);
   motorLeft.setSpeed(maxSpeed / 2);
   motorRight.setSpeed(maxSpeed / 2);
   // old batteries 1000
-  delay(800);
+  delay(750);
   motorLeft.setSpeed(maxSpeed / 2);
   motorRight.setSpeed(-maxSpeed / 2);
     uint16_t sensorValues[numSensors];
@@ -377,7 +417,7 @@ void leftWithoutLine() {
 }
 
 void deadEnd() {
- Serial.println("Svänger höger 180 grader");
+//  Serial.println("Svänger höger 180 grader");
 
   motorLeft.setSpeed(-maxSpeed / 2);
   motorRight.setSpeed(-maxSpeed / 2);
