@@ -245,9 +245,9 @@ bool isIntersection(uint16_t *sensorValues) {
     return false;
   }
 
-  bool leftIntersection = (sensorValues[0] > blackThreshold && sensorValues[1] > blackThreshold && sensorValues[2] > blackThreshold && sensorValues[5] < blackThreshold);
-  bool rightIntersection = (sensorValues[3] > blackThreshold && sensorValues[4] > blackThreshold && sensorValues[5] > blackThreshold && sensorValues[0] < blackThreshold);
-  bool tIntersection = (sensorValues[0] > blackThreshold && sensorValues[1] > blackThreshold && sensorValues[2] > blackThreshold && sensorValues[3] > blackThreshold && sensorValues[4] > blackThreshold && sensorValues[5] > blackThreshold);
+  bool leftIntersection = (sensorValues[0] > blackThreshold && sensorValues[1] > blackThreshold && sensorValues[5] < blackThreshold);
+  bool rightIntersection = (sensorValues[4] > blackThreshold && sensorValues[5] > blackThreshold && sensorValues[0] < blackThreshold);
+  bool tIntersection = (sensorValues[0] > blackThreshold && sensorValues[5] > blackThreshold);
   bool missingLine = (sensorValues[0] < blackThreshold && sensorValues[1] < blackThreshold && sensorValues[2] < blackThreshold && sensorValues[3] < blackThreshold && sensorValues[4] < blackThreshold && sensorValues[5] < blackThreshold);
   if(leftIntersection){
     Serial.println("left inter");
