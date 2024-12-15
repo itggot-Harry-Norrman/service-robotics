@@ -42,13 +42,14 @@ int phase = 0;
 // *** Path-sekvens för korsningar *** //
 //char path[] = {'R', 'L', 'L', 'R', 'L', 'R', 'R', 'L'}; 
 // char path[] = {'R','r','L','L','d','S','S','L','l','S','R','L','L','d','R','R','L','R','R','R','d','L','L','R','l','S'};
-char path[] = {'L','l','L'};
+char path[] = {'R','L','L','R','d','L','R','R','L'};
+// char path[] = {'L','m','l','L'};
 int pathLength = sizeof(path) / sizeof(path[0]);
 int pathIndex = 0; 
 
 // Tröskel för svart linje
 // originally 500
-const uint16_t blackThreshold = 600;
+const uint16_t blackThreshold = 500;
 
 // Tider
 unsigned long calibrationEndTime;
@@ -289,6 +290,8 @@ void handleIntersection(char action) {
     leftWithoutLine();
   } else if(action == 'd'){
     deadEnd();
+  } else if(action == 'm') {
+    midStraight();
   }
 }
 
@@ -372,6 +375,36 @@ void continueStraight() {
   }
   // delay(250);
   lastTurnTime = millis();
+}
+
+void midStraight() {
+    int error;
+  int position;
+  long startTime = millis();
+  long duration = 500;
+  while(true){
+    uint16_t sensorValues[numSensors];
+    position = qtr.readLineBlack(sensorValues);
+    error = position - 2500;
+    
+    int derivative = error - lastError;
+    int correction = Kp * error + Kd * derivative;
+    lastError = error;
+
+    int leftSpeed = baseSpeed + correction;
+    int rightSpeed = baseSpeed - correction;
+
+    leftSpeed = constrain(leftSpeed, -maxSpeed, maxSpeed);
+    rightSpeed = constrain(rightSpeed, -maxSpeed, maxSpeed);
+
+    motorLeft.setSpeed(leftSpeed);
+    motorRight.setSpeed(-rightSpeed);
+    bool missingLine = (sensorValues[0] < blackThreshold && sensorValues[1] < blackThreshold && sensorValues[2] < blackThreshold && sensorValues[3] < blackThreshold && sensorValues[4] < blackThreshold && sensorValues[5] < blackThreshold);
+    if(missingLine){
+      break;
+    }
+    delay(1);
+  }
 }
 
 void rightWithoutLine() {
