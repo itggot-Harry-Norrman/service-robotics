@@ -42,8 +42,9 @@ int phase = 0;
 // *** Path-sekvens för korsningar *** //
 //char path[] = {'R', 'L', 'L', 'R', 'L', 'R', 'R', 'L'}; 
 // char path[] = {'R','r','L','L','d','S','S','L','l','S','R','L','L','d','R','R','L','R','R','R','d','L','L','R','l','S'};
-char path[] = {'R','L','L','R','d','L','R','R','L'};
+char path[] = {'R','L','L','R','d','L','L','R','R','r','L','L','d','S','S','L','m','l','L','R','R','d','L','L','L','R','L','L','d','R','R','L','S','l','L','R','d','L','L','R','R','L','L','d','L','L','L','L','S','S','d','R','R','S','R','L','L','R','L'};
 // char path[] = {'L','m','l','L'};
+// char path[] = {'L','R'};
 int pathLength = sizeof(path) / sizeof(path[0]);
 int pathIndex = 0; 
 
@@ -65,7 +66,8 @@ void setup() {
   Serial.println("Startar kalibrering...");
   calibrateSensors();
   Serial.println("Kalibrering klar!");
-  alignWithLine();
+  delay(5000);
+  // alignWithLine();
 
   // Servoinit
   myServoLarge.attach(10);
@@ -76,7 +78,7 @@ void setup() {
   // Motorinit
   motorLeft.setSpeed(0);
   motorRight.setSpeed(0);
-  baseSpeed = maxSpeed / 2;
+  baseSpeed = 4*maxSpeed / 5;
 }
 
 void loop() {
@@ -156,7 +158,8 @@ void pickupCylinder() {
   moveSmallServo(170);
   delay(500);
   moveLargeServo(74);
-  moveSmallServo(50);
+  // moveSmallServo(50);
+  moveSmallServo(90);
   delay(500);
   moveSmallServo(175);
   delay(500);
@@ -300,11 +303,14 @@ void turnLeft() {
   Serial.println("Svänger vänster");
   motorLeft.setSpeed(maxSpeed / 2);
   motorRight.setSpeed(-maxSpeed / 2);
-  delay(250);
+  delay(150);
+  motorLeft.setSpeed(maxSpeed / 2);
+    motorRight.setSpeed(maxSpeed / 2);
+   delay(500);
   while (true) {
     motorLeft.setSpeed(maxSpeed / 2);
     motorRight.setSpeed(maxSpeed / 2);
-  // delay(500);
+   
 
     uint16_t sensorValues[numSensors];
 
@@ -324,11 +330,14 @@ void turnRight() {
   Serial.println("Svänger höger");
   motorLeft.setSpeed(maxSpeed / 2);
   motorRight.setSpeed(-maxSpeed / 2);
-  delay(250);
+  delay(150);
+  motorLeft.setSpeed(-maxSpeed / 2);
+    motorRight.setSpeed(-maxSpeed / 2);
+   delay(500);
   while (true) {
     motorLeft.setSpeed(-maxSpeed / 2);
     motorRight.setSpeed(-maxSpeed / 2);
-  // delay(500);
+   
 
     uint16_t sensorValues[numSensors];
 
@@ -407,15 +416,46 @@ void midStraight() {
   }
 }
 
+void timedStraight() {
+    int error;
+  int position;
+  long startTime = millis();
+  long duration = 500;
+  while(true){
+    uint16_t sensorValues[numSensors];
+    position = qtr.readLineBlack(sensorValues);
+    error = position - 2500;
+    
+    int derivative = error - lastError;
+    int correction = Kp * error + Kd * derivative;
+    lastError = error;
+
+    int leftSpeed = baseSpeed + correction;
+    int rightSpeed = baseSpeed - correction;
+
+    leftSpeed = constrain(leftSpeed, -maxSpeed, maxSpeed);
+    rightSpeed = constrain(rightSpeed, -maxSpeed, maxSpeed);
+
+    motorLeft.setSpeed(leftSpeed);
+    motorRight.setSpeed(-rightSpeed);
+    bool missingLine = (sensorValues[0] < blackThreshold && sensorValues[1] < blackThreshold && sensorValues[2] < blackThreshold && sensorValues[3] < blackThreshold && sensorValues[4] < blackThreshold && sensorValues[5] < blackThreshold);
+    if(missingLine){
+      break;
+    }
+    delay(1);
+  }
+}
+
 void rightWithoutLine() {
   motorLeft.setSpeed(maxSpeed / 2);
   motorRight.setSpeed(-maxSpeed / 2);
   // old batteries 600
-  delay(1000);
+  //900
+  delay(700);
   motorLeft.setSpeed(-maxSpeed / 2);
   motorRight.setSpeed(-maxSpeed / 2);
   // old batteries 1000
-  delay(800);
+  delay(675);
   motorLeft.setSpeed(maxSpeed / 2);
   motorRight.setSpeed(-maxSpeed / 2);
     uint16_t sensorValues[numSensors];
@@ -432,11 +472,12 @@ void leftWithoutLine() {
   motorLeft.setSpeed(maxSpeed / 2);
   motorRight.setSpeed(-maxSpeed / 2);
   // old batteries 600
-  delay(1500);
+  //1300
+  delay(1100);
   motorLeft.setSpeed(maxSpeed / 2);
   motorRight.setSpeed(maxSpeed / 2);
   // old batteries 1000
-  delay(750);
+  delay(675);
   motorLeft.setSpeed(maxSpeed / 2);
   motorRight.setSpeed(-maxSpeed / 2);
     uint16_t sensorValues[numSensors];
